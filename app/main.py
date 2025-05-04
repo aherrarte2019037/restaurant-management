@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from app.routers import orders, restaurants, menu_items, reviews
 from app.db.indexes import create_indexes
+from fastapi.openapi.utils import get_openapi
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,6 +16,22 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+        
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 # Include routers
 app.include_router(orders.router)

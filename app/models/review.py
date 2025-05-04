@@ -1,21 +1,34 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from bson import ObjectId
 from datetime import datetime
-from app.models.object_id import PyObjectId
 
 class CustomerBasicInfo(BaseModel):
     name: str
     email: str
+    
+    model_config = ConfigDict(
+        json_schema_extra={"example": {
+            "name": "Juan Pérez",
+            "email": "juan@ejemplo.com"
+        }}
+    )
 
 class ResponseInfo(BaseModel):
     text: str
     date: datetime = Field(default_factory=datetime.now)
+    
+    model_config = ConfigDict(
+        json_schema_extra={"example": {
+            "text": "Gracias por su reseña. Lamentamos los inconvenientes.",
+            "date": "2023-01-02T15:30:00"
+        }}
+    )
 
 class Review(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    restaurant_id: PyObjectId
-    order_id: Optional[PyObjectId] = None
+    id: Optional[str] = Field(alias="_id", default=None)
+    restaurant_id: str
+    order_id: Optional[str] = None
     customer: CustomerBasicInfo
     rating: int
     comment: str
@@ -25,7 +38,17 @@ class Review(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
-    class Config:
-        json_encoders = {ObjectId: str}
-        validate_by_name = True
-        validate_assignment = True 
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_encoders={ObjectId: str},
+        json_schema_extra={"example": {
+            "_id": "5f8d0f3e9c9d1c2a3b4c5d6e",
+            "restaurant_id": "5f8d0f3e9c9d1c2a3b4c5d6f",
+            "order_id": "5f8d0f3e9c9d1c2a3b4c5d7a",
+            "customer": {"name": "Juan Pérez", "email": "juan@ejemplo.com"},
+            "rating": 4,
+            "comment": "Muy buen servicio y comida deliciosa",
+            "date": "2023-01-01T18:30:00",
+            "helpful_votes": 5
+        }}
+    ) 

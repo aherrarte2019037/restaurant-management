@@ -1,18 +1,26 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict
 from bson import ObjectId
 from datetime import datetime
-from app.models.object_id import PyObjectId
 
 class NutritionalInfo(BaseModel):
     calories: Optional[float] = None
     protein: Optional[float] = None
     carbs: Optional[float] = None
     fat: Optional[float] = None
+    
+    model_config = ConfigDict(
+        json_schema_extra={"example": {
+            "calories": 450.0,
+            "protein": 20.0,
+            "carbs": 30.0,
+            "fat": 15.0
+        }}
+    )
 
 class MenuItem(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    restaurant_id: PyObjectId
+    id: Optional[str] = Field(alias="_id", default=None)
+    restaurant_id: str
     name: str
     description: str
     price: float
@@ -25,7 +33,18 @@ class MenuItem(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
-    class Config:
-        json_encoders = {ObjectId: str}
-        validate_by_name = True
-        validate_assignment = True 
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_encoders={ObjectId: str},
+        json_schema_extra={"example": {
+            "_id": "5f8d0f3e9c9d1c2a3b4c5d6e",
+            "restaurant_id": "5f8d0f3e9c9d1c2a3b4c5d6f",
+            "name": "Hamburguesa Clásica",
+            "description": "Deliciosa hamburguesa de carne con lechuga, tomate y queso",
+            "price": 10.99,
+            "category": "Hamburguesas",
+            "tags": ["Carne", "Clásico"],
+            "available": True,
+            "ingredients": ["Carne", "Pan", "Lechuga", "Tomate", "Queso"]
+        }}
+    ) 
