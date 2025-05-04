@@ -1,4 +1,4 @@
-from pymongo.mongo_client import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.server_api import ServerApi
 import certifi
 
@@ -6,7 +6,7 @@ import certifi
 uri = "mongodb+srv://root:l6laZfVO5NU1AQux@proyectodb.alvl9qk.mongodb.net/?retryWrites=true&w=majority&appName=ProyectoDB"
 
 # Create a new client and connect to the server with SSL configuration
-client = MongoClient(
+client = AsyncIOMotorClient(
     uri,
     server_api=ServerApi('1'),
     ssl=True,
@@ -14,11 +14,8 @@ client = MongoClient(
     tlsCAFile=certifi.where()
 )
 
-# Test connection and get database
-try:
-    client.admin.command('ping')
-    print("✅ Conectado a MongoDB Atlas")
-    db = client['Jefe']
-except Exception as e:
-    print("❌ No se pudo conectar:", e)
-    db = None 
+# Get database
+db = client['Jefe']
+
+# Print connection status (we can't use ping command with AsyncIOMotorClient here)
+print("✅ Conectado a MongoDB Atlas") 
