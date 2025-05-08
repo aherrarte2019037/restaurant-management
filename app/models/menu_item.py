@@ -27,7 +27,7 @@ class MenuItem(BaseModel):
     category: str
     tags: List[str] = []
     available: bool = True
-    image_url: Optional[str] = None
+    image_id: Optional[str] = None
     nutritional_info: Optional[NutritionalInfo] = None
     ingredients: List[str] = []
     created_at: datetime = Field(default_factory=datetime.now)
@@ -39,6 +39,8 @@ class MenuItem(BaseModel):
         if isinstance(data, dict):
             if '_id' in data and isinstance(data['_id'], ObjectId):
                 data['_id'] = str(data['_id'])
+            if 'restaurant_id' in data and isinstance(data['restaurant_id'], ObjectId):
+                data['restaurant_id'] = str(data['restaurant_id'])
         return data
     
     model_config = ConfigDict(
@@ -52,6 +54,7 @@ class MenuItem(BaseModel):
             "category": "Hamburguesas",
             "tags": ["Carne", "Clásico"],
             "available": True,
+            "image_id": "667d9a1f5b6e4d3c1b7a8e9f",
             "ingredients": ["Carne", "Pan", "Lechuga", "Tomate", "Queso"]
         }}
     ) 

@@ -94,7 +94,6 @@ def create_fake_menu_item(restaurant_ids, num_items_per_restaurant=15):
                 "category": choice(categories),
                 "tags": sample(tags, k=randint(0, 3)),
                 "available": uniform(0, 1) > 0.1,
-                "image_url": fake.image_url() if uniform(0, 1) > 0.3 else None,
                 "nutritional_info": create_fake_nutritional_info().model_dump() if uniform(0, 1) > 0.4 else None,
                 "ingredients": sample(ingredients, k=randint(3, 7)),
                 "created_at": fake.past_datetime(start_date="-1y"),

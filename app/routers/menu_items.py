@@ -1,10 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from typing import List, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 from app.models.menu_item import MenuItem
 from app.database import db
 from datetime import datetime
+import motor.motor_asyncio # Importar motor para GridFS
+from starlette.responses import StreamingResponse
+
+# Crear instancia de GridFS
+fs = motor.motor_asyncio.AsyncIOMotorGridFSBucket(db)
 
 router = APIRouter(prefix="/menu-items", tags=["menu-items"])
 
@@ -100,4 +105,66 @@ async def search_menu_items(query: str):
     menu_items_list = await db.menu_items.find(
         {"$text": {"$search": query}}
     ).to_list(100)
-    return menu_items_list 
+    return menu_items_list
+
+@router.post("/{item_id}/image", status_code=201)
+async def upload_menu_item_image(item_id: str, file: UploadFile = File(...)):
+    """Sube una imagen para un elemento del menú específico."""
+    try:
+        object_id = ObjectId(item_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="ID de elemento del menú inválido")
+
+    # Verificar si el item existe
+    menu_item = await db.menu_items.find_one({"_id": object_id})
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Elemento del menú no encontrado")
+
+    # Subir archivo a GridFS
+    try:
+        grid_id = await fs.upload_from_stream(
+            file.filename,
+            file.file, # El objeto archivo/stream
+            metadata={"content_type": file.content_type} # Guardar content type
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al subir archivo: {e}")
+
+    # Actualizar el menu item con el ID de la imagen de GridFS
+    await db.menu_items.update_one(
+        {"_id": object_id},
+        {"$set": {"image_id": str(grid_id), "updated_at": datetime.now()}}
+    )
+
+    return {"filename": file.filename, "image_id": str(grid_id)}
+
+@router.get("/{item_id}/image")
+async def get_menu_item_image(item_id: str):
+    """Obtiene la imagen de un elemento del menú específico."""
+    try:
+        object_id = ObjectId(item_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="ID de elemento del menú inválido")
+
+    menu_item = await db.menu_items.find_one({"_id": object_id})
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Elemento del menú no encontrado")
+
+    image_id_str = menu_item.get("image_id")
+    if not image_id_str:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada para este elemento")
+
+    try:
+        image_object_id = ObjectId(image_id_str)
+    except InvalidId:
+        # Esto no debería pasar si guardamos strings válidos, pero por seguridad
+        raise HTTPException(status_code=500, detail="ID de imagen almacenado inválido") 
+
+    try:
+        grid_out = await fs.open_download_stream(image_object_id)
+        content_type = grid_out.metadata.get("content_type", "application/octet-stream")
+        # Devolver el stream del archivo
+        return StreamingResponse(grid_out, media_type=content_type)
+    except Exception as e: # Podría ser NoFile si el ID no está en GridFS
+        print(f"Error buscando imagen en GridFS {image_id_str}: {e}")
+        raise HTTPException(status_code=404, detail="Archivo de imagen no encontrado en GridFS") 
