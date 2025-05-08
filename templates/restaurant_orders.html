@@ -40,6 +40,8 @@
         .filters-pagination input, .filters-pagination select { padding: 5px; border: 1px solid #ccc; }
         .pagination-controls button { padding: 5px 10px; }
         .pagination-info { margin-left: 10px; font-size: 0.9em; color: #666; }
+        .order-actions input[type="checkbox"] { margin-right: 10px; transform: scale(1.2); }
+        .delete-batch-section { margin-top: 20px; padding-top: 15px; border-top: 1px solid #ccc; }
     </style>
 </head>
 <body>
@@ -127,6 +129,15 @@
     </div>
 
     <h2>Pedidos Existentes</h2>
+    
+    <!-- Controles para selección y eliminación en lote -->
+     <div class="delete-batch-section">
+        <button id="select-all-btn">Seleccionar Todos</button>
+        <button id="deselect-all-btn">Deseleccionar Todos</button>
+        <button id="delete-selected-btn" style="color: red; margin-left: 20px;" disabled>Eliminar Seleccionados</button>
+        <span id="selected-count" style="margin-left: 10px; font-size: 0.9em; color: #555;">(0 seleccionados)</span>
+     </div>
+     
     <ul id="order-list" class="item-list">
         <li class="loading">Cargando pedidos...</li>
     </ul>
@@ -154,6 +165,11 @@
         const limit = 20; // Igual al default del backend
         let totalOrders = 0;
         let totalPages = 1;
+        const selectAllBtn = document.getElementById('select-all-btn');
+        const deselectAllBtn = document.getElementById('deselect-all-btn');
+        const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+        const selectedCountSpan = document.getElementById('selected-count');
+        let selectedOrderIds = new Set();
 
         function showMessage(text, type = 'error') {
             messageDiv.textContent = text;
@@ -333,6 +349,9 @@
                  totalPages = Math.ceil(totalOrders / limit);
                  
                  orderList.innerHTML = '';
+                 selectedOrderIds.clear(); // Limpiar selección al recargar
+                 updateDeleteButtonState(); // Actualizar estado del botón
+                 
                  if (orders.length === 0) {
                      orderList.innerHTML = '<li>No se encontraron pedidos con estos filtros.</li>';
                  } else {
@@ -349,6 +368,8 @@
                         const statusSelect = `<select id="${statusSelectId}">${statusOptions}</select>`;
                         li.innerHTML = `
                             <div class="order-details">
+                                <!-- Checkbox para selección -->
+                                <input type="checkbox" class="order-checkbox" value="${orderId}" onchange="handleCheckboxChange(this)">
                                 <strong>ID Corto: ${orderId.slice(-6)}</strong> (Cliente: ${order.customer.name})<br>
                                 <small>Rest: ${order.restaurant}</small> | Fecha: ${new Date(order.date).toLocaleString()} | Total: $${order.total_amount.toFixed(2)}<br>
                                 Items: ${itemsSummary}<br>
@@ -472,6 +493,68 @@
         window.removeOrderEntry = removeOrderEntry;
 
         addAnotherOrderBtn.addEventListener('click', addOrderEntry);
+
+        // --- Funciones para selección y eliminación en lote ---
+        function handleCheckboxChange(checkbox) {
+            if (checkbox.checked) {
+                selectedOrderIds.add(checkbox.value);
+            } else {
+                selectedOrderIds.delete(checkbox.value);
+            }
+            updateDeleteButtonState();
+        }
+
+        function updateDeleteButtonState() {
+            const count = selectedOrderIds.size;
+            deleteSelectedBtn.disabled = count === 0;
+            selectedCountSpan.textContent = `(${count} seleccionados)`;
+        }
+
+        selectAllBtn.addEventListener('click', () => {
+            const checkboxes = orderList.querySelectorAll('.order-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = true;
+                selectedOrderIds.add(cb.value);
+            });
+            updateDeleteButtonState();
+        });
+
+        deselectAllBtn.addEventListener('click', () => {
+            const checkboxes = orderList.querySelectorAll('.order-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            selectedOrderIds.clear();
+            updateDeleteButtonState();
+        });
+
+        deleteSelectedBtn.addEventListener('click', async () => {
+            const idsToDelete = Array.from(selectedOrderIds);
+            if (idsToDelete.length === 0) return;
+
+            if (!confirm(`¿Estás seguro de que quieres eliminar ${idsToDelete.length} pedidos seleccionados?`)) return;
+
+            try {
+                const response = await fetch('/orders/batch', { // Nuevo endpoint DELETE /batch
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ order_ids: idsToDelete }), // Enviar lista de IDs
+                });
+                 if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Error al eliminar lote'}`);
+                 }
+                 const result = await response.json();
+                 showMessage(`${result.deleted_count || idsToDelete.length} pedidos eliminados con éxito.`, 'success');
+                 selectedOrderIds.clear(); // Limpiar selección
+                 fetchOrders(); // Recargar lista
+            } catch (error) {
+                 console.error('Error deleting batch orders:', error);
+                 showMessage(`Error al eliminar lote: ${error.message}`, 'error');
+            }
+        });
 
     </script>
 

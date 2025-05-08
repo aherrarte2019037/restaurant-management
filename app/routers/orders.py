@@ -201,8 +201,43 @@ async def update_order_status(oid: str, status_update: dict = Body(...)):
     except InvalidId:
         raise HTTPException(status_code=400, detail="ID de pedido inválido")
 
+@router.delete("/batch", status_code=status.HTTP_200_OK)
+async def delete_orders_batch(payload: dict = Body(...)):
+    """Elimina múltiples pedidos basados en una lista de IDs."""
+    order_ids_str = payload.get('order_ids')
+    if not order_ids_str or not isinstance(order_ids_str, list):
+        raise HTTPException(status_code=400, detail="Se requiere una lista de 'order_ids' en el cuerpo.")
+
+    object_ids_to_delete = []
+    invalid_ids = []
+    for oid_str in order_ids_str:
+        try:
+            object_ids_to_delete.append(ObjectId(oid_str))
+        except InvalidId:
+            invalid_ids.append(oid_str)
+            
+    if invalid_ids:
+        raise HTTPException(status_code=400, detail=f"Se encontraron IDs inválidos: {', '.join(invalid_ids)}")
+        
+    if not object_ids_to_delete:
+         raise HTTPException(status_code=400, detail="No se proporcionaron IDs válidos para eliminar.")
+
+    try:
+        result = await db['orders'].delete_many({"_id": {"$in": object_ids_to_delete}})
+        deleted_count = result.deleted_count
+        
+        if deleted_count != len(object_ids_to_delete):
+            print(f"Advertencia: Se intentaron eliminar {len(object_ids_to_delete)} IDs, pero solo se eliminaron {deleted_count}.")
+            
+        return {"deleted_count": deleted_count}
+        
+    except Exception as e:
+        print(f"Error en delete_orders_batch: {e}")
+        raise HTTPException(status_code=500, detail="Error al eliminar pedidos en lote.")
+        
 @router.delete("/{oid}")
 async def delete_order(oid: str):
+    """Elimina un pedido individual.""" # Descripción actualizada
     try:
         object_id = ObjectId(oid)
         res = await db['orders'].delete_one({"_id": object_id})
@@ -210,4 +245,4 @@ async def delete_order(oid: str):
             raise HTTPException(404, "Pedido no encontrado")
         return {"status": "eliminado"}
     except InvalidId:
-        raise HTTPException(404, "ID de pedido inválido") 
+        raise HTTPException(404, "ID de pedido inválido") # Mantenemos 404 aquí 
