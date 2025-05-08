@@ -62,7 +62,7 @@ async def restaurant_orders_page(request: Request, restaurant_id: str):
         object_id = ObjectId(restaurant_id)
         restaurant_data = await db.restaurants.find_one(
             {"_id": object_id},
-            {"_id": 1, "name": 1} # Solo necesitamos ID y nombre (proyección)
+            {"_id": 1, "name": 1, "address": 1, "location": 1} # (proyección)
         )
         
         if not restaurant_data:
