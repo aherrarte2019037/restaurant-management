@@ -38,6 +38,7 @@ async def create_review(review: Review):
     res = await db.reviews.insert_one(data)
     new_review_doc = await db.reviews.find_one({"_id": res.inserted_id})
     
+    # Agregación compleja para calcular el nuevo rating promedio para el restaurante
     # Calcular el nuevo rating promedio para el restaurante (usando ObjectId)
     pipeline = [
         {"$match": {"restaurant_id": restaurant_id_obj}},

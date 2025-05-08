@@ -41,6 +41,7 @@ async def list_orders(
     sort_query = [(sort_by, sort_order)]
     
     try:
+        # Agregación simple para obtener el total de pedidos
         total_count = await db['orders'].count_documents(query)
         
         cursor = db['orders'].find(query).sort(sort_query).skip(skip).limit(limit)
