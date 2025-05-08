@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pedidos de {{ restaurant.name }}</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: auto; }
+        h1, h2, h3 { border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 20px; }
+        ul { list-style: none; padding: 0; }
+        li { border: 1px solid #eee; margin-bottom: 8px; padding: 10px; background-color: #f9f9f9; display: flex; justify-content: space-between; flex-wrap: wrap; }
+        button { cursor: pointer; margin-left: 5px; padding: 3px 8px; }
+        select { padding: 3px; margin-right: 5px; }
+        .error { color: red; font-weight: bold; margin-bottom: 15px; }
+        .order-details { flex-basis: 70%; }
+        .order-actions { flex-basis: 30%; text-align: right; }
+        .loading { font-style: italic; color: #888; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .batch-order-form { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; }
+        .order-entry { border-bottom: 1px dashed #ccc; margin-bottom: 15px; padding-bottom: 15px; }
+        .order-entry h5 { margin-top: 15px; }
+        .order-menu-items-placeholder { margin-top: 10px; padding-left: 10px; border-left: 3px solid #eee; }
+        .order-menu-items-placeholder .form-group label { flex-basis: 60%; }
+        .order-menu-items-placeholder input[type="number"] { flex-basis: 20%; }
+        .form-group { margin-bottom: 10px; }
+        input[type="text"], input[type="email"] { width: calc(100% - 12px); padding: 5px; border: 1px solid #ccc; }
+        .filters-pagination { 
+            margin-bottom: 20px; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            background-color: #fdfdfd; 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 15px; 
+            align-items: flex-end; 
+        }
+        .filters-pagination div { display: flex; flex-direction: column; }
+        .filters-pagination label { font-size: 0.9em; margin-bottom: 3px; color: #555; }
+        .filters-pagination input, .filters-pagination select { padding: 5px; border: 1px solid #ccc; }
+        .pagination-controls button { padding: 5px 10px; }
+        .pagination-info { margin-left: 10px; font-size: 0.9em; color: #666; }
+    </style>
+</head>
+<body>
+
+    <a href="/restaurants/{{ restaurant.id }}/dashboard">&laquo; Volver al Dashboard de {{ restaurant.name }}</a>
+
+    <h1>Pedidos de {{ restaurant.name }}</h1>
+
+    <div id="message" class="message-area"></div>
+
+    <!-- MOVER AQUÍ: Interfaz para crear pedidos en lote -->
+    <div id="batch-order-creator" class="batch-order-form">
+        <h3>Crear Pedidos en Lote para {{ restaurant.id }}</h3>
+        <div id="batch-order-list">
+            <!-- Template para una entrada de pedido -->
+            <div class="order-entry-template" style="display: none;">
+                 <h4>Pedido <span class="order-entry-number">#</span></h4>
+                 <button type="button" class="remove-order-btn" style="float: right; color: red;" onclick="removeOrderEntry(this)">Eliminar este pedido</button>
+                 <input type="hidden" class="restaurant-id-hidden" value="{{ restaurant.id }}">
+                 <h5>Cliente</h5>
+                 <div class="form-group">
+                     <label>Nombre Cliente:</label>
+                     <input type="text" class="customer-name" required>
+                 </div>
+                 <div class="form-group">
+                     <label>Email Cliente:</label>
+                     <input type="email" class="customer-email" required>
+                 </div>
+                 <h5>Seleccionar Platos</h5>
+                 <div class="order-menu-items-placeholder">
+                     <p><small>Cargando menú...</small></p> 
+                 </div>
+             </div>
+            <!-- Fin Template -->
+        </div>
+        <button type="button" id="add-another-order-btn">+ Añadir Pedido al Lote</button>
+        <hr>
+        <button type="button" id="submit-batch-orders-btn" style="font-weight: bold; padding: 10px 15px;">Enviar Lote de Pedidos</button>
+    </div>
+    
+    <!-- MOVIDO DESPUÉS: Filtros y Paginación -->
+    <div class="filters-pagination">
+        <h3>Filtrar/Ordenar Pedidos Existentes</h3> <!-- Añadido título -->
+        <div>
+            <label for="filter-email">Email Cliente:</label>
+            <input type="email" id="filter-email" placeholder="Buscar por email...">
+        </div>
+        <div>
+            <label for="filter-status">Estado:</label>
+            <select id="filter-status">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="en_proceso">En Proceso</option>
+                <option value="listo_para_recoger">Listo para Recoger</option>
+                <option value="en_camino">En Camino</option>
+                <option value="entregado">Entregado</option>
+                <option value="cancelado">Cancelado</option>
+            </select>
+        </div>
+        <div>
+            <label for="sort-by">Ordenar por:</label>
+            <select id="sort-by">
+                <option value="date">Fecha</option>
+                <option value="total_amount">Monto Total</option>
+                <option value="status">Estado</option>
+                <option value="customer.name">Nombre Cliente</option>
+            </select>
+        </div>
+        <div>
+            <label for="sort-order">Orden:</label>
+            <select id="sort-order">
+                <option value="-1">Descendente</option>
+                <option value="1">Ascendente</option>
+            </select>
+        </div>
+        <div>
+            <button id="apply-filters-btn">Aplicar Filtros</button>
+        </div>
+         <div style="flex-basis: 100%; height: 0;"></div> <!-- Salto de línea flex -->
+        <div class="pagination-controls">
+            <button id="prev-page-btn" disabled>&laquo; Anterior</button>
+            <button id="next-page-btn" disabled>Siguiente &raquo;</button>
+            <span id="pagination-info" class="pagination-info">Página 1 de 1</span>
+        </div>
+    </div>
+
+    <h2>Pedidos Existentes</h2>
+    <ul id="order-list" class="item-list">
+        <li class="loading">Cargando pedidos...</li>
+    </ul>
+
+    <script>
+        const restaurantId = "{{ restaurant.id }}";
+        const orderList = document.getElementById('order-list');
+        const messageDiv = document.getElementById('message');
+        const batchOrderListDiv = document.getElementById('batch-order-list');
+        const addAnotherOrderBtn = document.getElementById('add-another-order-btn');
+        const submitBatchOrdersBtn = document.getElementById('submit-batch-orders-btn');
+        const orderEntryTemplate = document.querySelector('.order-entry-template');
+        let orderEntryCounter = 0;
+        let menuItemsCache = [];
+        const filterEmailInput = document.getElementById('filter-email');
+        const filterStatusSelect = document.getElementById('filter-status');
+        const sortBySelect = document.getElementById('sort-by');
+        const sortOrderSelect = document.getElementById('sort-order');
+        const applyFiltersBtn = document.getElementById('apply-filters-btn');
+        const prevPageBtn = document.getElementById('prev-page-btn');
+        const nextPageBtn = document.getElementById('next-page-btn');
+        const paginationInfoSpan = document.getElementById('pagination-info');
+        
+        let currentPage = 1;
+        const limit = 20; // Igual al default del backend
+        let totalOrders = 0;
+        let totalPages = 1;
+
+        function showMessage(text, type = 'error') {
+            messageDiv.textContent = text;
+            messageDiv.className = `message-area ${type}`;
+            setTimeout(() => { messageDiv.textContent = ''; messageDiv.className = 'message-area'; }, 5000);
+        }
+
+        function addOrderEntry() {
+            orderEntryCounter++;
+            const newEntry = orderEntryTemplate.cloneNode(true);
+            newEntry.style.display = 'block';
+            newEntry.classList.remove('order-entry-template');
+            newEntry.classList.add('order-entry');
+            newEntry.dataset.entryIndex = orderEntryCounter;
+            newEntry.querySelector('.order-entry-number').textContent = orderEntryCounter;
+            
+            const menuPlaceholder = newEntry.querySelector('.order-menu-items-placeholder');
+            if(menuItemsCache.length > 0) {
+                populateOrderFormMenuEntry(menuPlaceholder, orderEntryCounter, menuItemsCache);
+            } else {
+                menuPlaceholder.innerHTML = '<p><small>Menú no cargado aún o vacío.</small></p>';
+            }
+            
+            batchOrderListDiv.appendChild(newEntry);
+        }
+        
+        function removeOrderEntry(button) {
+            const entry = button.closest('.order-entry');
+            entry.remove();
+        }
+         
+        function populateOrderFormMenuEntry(container, entryIndex, items) {
+            container.innerHTML = ''; 
+            if(items.length === 0) {
+                 container.innerHTML = '<p><small>Este restaurante no tiene platos disponibles.</small></p>';
+                 return;
+            }
+            items.forEach(item => {
+                if (!item.available) return; 
+                const itemId = item.id || item._id;
+                const div = document.createElement('div');
+                div.classList.add('form-group');
+                div.style.display = 'flex';
+                div.style.alignItems = 'center';
+                div.innerHTML = `
+                    <label for="qty-${entryIndex}-${itemId}" style="flex-basis: 60%; margin-right: 10px;">${item.name} ($${item.price.toFixed(2)})</label>
+                    <input type="number" id="qty-${entryIndex}-${itemId}" name="quantity_${entryIndex}_${itemId}" 
+                           min="0" value="0" style="width: 60px; flex-basis: 30%;" 
+                           data-item-id="${itemId}" 
+                           data-item-name="${item.name}"
+                           data-item-price="${item.price}">
+                `;
+                container.appendChild(div);
+            });
+        }
+        
+        submitBatchOrdersBtn.addEventListener('click', async () => {
+            const allOrderEntries = batchOrderListDiv.querySelectorAll('.order-entry');
+            if (allOrderEntries.length === 0) {
+                showMessage('Añada al menos un pedido a la lista antes de enviar.', 'error');
+                return;
+            }
+            const batchData = [];
+            let hasError = false;
+            
+            allOrderEntries.forEach((entry, index) => {
+                const customerNameInput = entry.querySelector('.customer-name');
+                const customerEmailInput = entry.querySelector('.customer-email');
+                const customerName = customerNameInput.value.trim();
+                const customerEmail = customerEmailInput.value.trim();
+
+                if (!customerName || !customerEmail) {
+                     showMessage(`Faltan datos del cliente en el Pedido #${index + 1}.`, 'error');
+                     customerNameInput.style.borderColor = 'red';
+                     customerEmailInput.style.borderColor = 'red';
+                     hasError = true;
+                     return;
+                } else {
+                     customerNameInput.style.borderColor = '';
+                     customerEmailInput.style.borderColor = '';
+                 }
+
+                const orderItems = [];
+                let totalAmount = 0;
+                const quantityInputs = entry.querySelectorAll('.order-menu-items-placeholder input[type="number"]');
+                quantityInputs.forEach(input => {
+                    const quantity = parseInt(input.value, 10);
+                    if (quantity > 0) {
+                        const itemId = input.dataset.itemId;
+                        const itemName = input.dataset.itemName;
+                        const itemPrice = parseFloat(input.dataset.itemPrice);
+                        orderItems.push({
+                            item_id: itemId,
+                            name: itemName,
+                            price: itemPrice,
+                            quantity: quantity
+                        });
+                        totalAmount += itemPrice * quantity;
+                    }
+                });
+
+                if (orderItems.length === 0) {
+                    showMessage(`El Pedido #${index + 1} no tiene platos seleccionados.`, 'error');
+                    hasError = true;
+                    return;
+                }
+                
+                batchData.push({
+                    restaurant: restaurantId,
+                    customer: { name: customerName, email: customerEmail },
+                    items: orderItems,
+                    total_amount: Math.round(totalAmount * 100) / 100, 
+                    status: 'pendiente',
+                    payment_status: 'pendiente'
+                });
+            });
+
+            if (hasError || batchData.length === 0) {
+                 if (!hasError) showMessage('No hay pedidos válidos para enviar.', 'error');
+                 return;
+            }
+            
+            try {
+                const response = await fetch('/orders/batch', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(batchData),
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    let errorMsg = `HTTP ${response.status}: ${errorData.detail?.message || errorData.detail || 'Error al crear lote'}`;
+                    if(errorData.detail?.errors) {
+                        errorMsg += ' Detalles: ' + errorData.detail.errors.join('; ');
+                    }
+                    throw new Error(errorMsg);
+                }
+                
+                const result = await response.json(); 
+                showMessage(`${result.created_count || batchData.length} pedidos creados con éxito.`, 'success');
+                batchOrderListDiv.innerHTML = '';
+                orderEntryCounter = 0;
+                addOrderEntry();
+                fetchOrders();
+            } catch (error) {
+                 console.error('Error submitting batch orders:', error);
+                 showMessage(`Error al crear lote: ${error.message}`, 'error');
+            }
+        });
+
+        async function fetchOrders() {
+            orderList.innerHTML = '<li class="loading">Cargando pedidos...</li>';
+            
+            // Recoger filtros y paginación actuales
+            const emailFilter = filterEmailInput.value.trim();
+            const statusFilter = filterStatusSelect.value;
+            const sortBy = sortBySelect.value;
+            const sortOrder = sortOrderSelect.value;
+            const skip = (currentPage - 1) * limit;
+
+            // Construir URL con parámetros
+            const params = new URLSearchParams();
+            if (emailFilter) params.append('customer_email', emailFilter);
+            if (statusFilter) params.append('status', statusFilter);
+            params.append('sort_by', sortBy);
+            params.append('sort_order', sortOrder);
+            params.append('skip', skip);
+            params.append('limit', limit);
+            
+            try {
+                 const response = await fetch(`/orders/?${params.toString()}`); 
+                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                 
+                 const result = await response.json(); // Esperar el objeto {total: N, orders: [...]} 
+                 const orders = result.orders;
+                 totalOrders = result.total;
+                 totalPages = Math.ceil(totalOrders / limit);
+                 
+                 orderList.innerHTML = '';
+                 if (orders.length === 0) {
+                     orderList.innerHTML = '<li>No se encontraron pedidos con estos filtros.</li>';
+                 } else {
+                    const statuses = ['pendiente', 'en_proceso', 'listo_para_recoger', 'en_camino', 'entregado', 'cancelado'];
+                    orders.forEach(order => {
+                        const li = document.createElement('li');
+                        const orderId = order.id || order._id;
+                        const itemsSummary = order.items.map(it => `${it.quantity}x ${it.name}`).join(', ');
+                        let statusOptions = '';
+                        statuses.forEach(s => {
+                            statusOptions += `<option value="${s}" ${order.status === s ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`;
+                        });
+                        const statusSelectId = `status-${orderId}`;
+                        const statusSelect = `<select id="${statusSelectId}">${statusOptions}</select>`;
+                        li.innerHTML = `
+                            <div class="order-details">
+                                <strong>ID Corto: ${orderId.slice(-6)}</strong> (Cliente: ${order.customer.name})<br>
+                                <small>Rest: ${order.restaurant}</small> | Fecha: ${new Date(order.date).toLocaleString()} | Total: $${order.total_amount.toFixed(2)}<br>
+                                Items: ${itemsSummary}<br>
+                                <small>Pago: ${order.payment_status}${order.payment_method ? ' (' + order.payment_method + ')' : ''}</small>
+                                ${order.delivery_time ? `<br><small>Entregado: ${new Date(order.delivery_time).toLocaleString()}</small>` : ''}
+                            </div>
+                            <div class="order-actions">
+                                Estado: ${statusSelect}
+                                <button onclick="updateOrderStatus('${orderId}')">Actualizar</button>
+                                <button onclick="deleteOrder('${orderId}')" style="margin-top: 5px; color: red;">Eliminar</button>
+                            </div>
+                        `;
+                        orderList.appendChild(li);
+                    });
+                 }
+                 
+                 // Actualizar controles de paginación
+                 updatePaginationControls();
+                 
+             } catch (error) {
+                 console.error('Error fetching orders:', error);
+                 orderList.innerHTML = '<li>Error al cargar los pedidos.</li>';
+                 showMessage('Error al cargar los pedidos.');
+                 // Deshabilitar botones si hay error
+                 prevPageBtn.disabled = true;
+                 nextPageBtn.disabled = true;
+                 paginationInfoSpan.textContent = 'Error';
+             }
+        }
+        
+        // Función para actualizar los controles de paginación
+        function updatePaginationControls() {
+            paginationInfoSpan.textContent = `Página ${currentPage} de ${totalPages} (${totalOrders} pedidos)`;
+            prevPageBtn.disabled = currentPage <= 1;
+            nextPageBtn.disabled = currentPage >= totalPages;
+        }
+
+        // Event Listeners para filtros y paginación
+        applyFiltersBtn.addEventListener('click', () => {
+            currentPage = 1; // Resetear a la primera página al aplicar filtros
+            fetchOrders();
+        });
+
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                fetchOrders();
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                fetchOrders();
+            }
+        });
+        
+        async function deleteOrder(orderId) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este pedido?')) return;
+            try {
+                const response = await fetch(`/orders/${orderId}`, {
+                    method: 'DELETE',
+                });
+                 if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Error al eliminar'}`);
+                 }
+                 showMessage('Pedido eliminado con éxito.', 'success');
+                 fetchOrders();
+            } catch (error) {
+                 console.error('Error deleting order:', error);
+                 showMessage(`Error al eliminar pedido: ${error.message}`, 'error');
+            }
+        }
+        
+        async function updateOrderStatus(orderId) {
+            const selectElement = document.getElementById(`status-${orderId}`);
+            const newStatus = selectElement.value;
+            try {
+                const response = await fetch(`/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ status: newStatus }),
+                });
+                if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Error al actualizar estado'}`);
+                }
+                showMessage('Estado del pedido actualizado.', 'success');
+            } catch (error) {
+                 console.error('Error updating order status:', error);
+                 showMessage(`Error al actualizar estado: ${error.message}`, 'error');
+            }
+        }
+
+        async function fetchMenuForOrderForm() {
+            try {
+                const response = await fetch(`/menu-items/?restaurant_id=${restaurantId}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                menuItemsCache = await response.json();
+                const firstPlaceholder = document.querySelector('.order-entry .order-menu-items-placeholder');
+                if (firstPlaceholder) {
+                     populateOrderFormMenuEntry(firstPlaceholder, 1, menuItemsCache);
+                }
+            } catch (error) {
+                console.error('Error fetching menu items for form:', error);
+                showMessage('Error al cargar el menú para crear pedidos.', 'error');
+                const placeholders = document.querySelectorAll('.order-menu-items-placeholder');
+                placeholders.forEach(p => p.innerHTML = '<p style="color:red;">Error al cargar menú.</p>');
+            }
+        }
+
+        fetchOrders(); // Carga inicial
+        fetchMenuForOrderForm();
+        addOrderEntry();
+        
+        window.deleteOrder = deleteOrder;
+        window.updateOrderStatus = updateOrderStatus;
+        window.removeOrderEntry = removeOrderEntry;
+
+        addAnotherOrderBtn.addEventListener('click', addOrderEntry);
+
+    </script>
+
+</body>
+</html> 

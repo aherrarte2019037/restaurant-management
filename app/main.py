@@ -1,8 +1,15 @@
 from fastapi import FastAPI
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
-from app.routers import orders, restaurants, menu_items, reviews
+from app.routers import orders, restaurants, menu_items, reviews, frontend
 from app.db.indexes import create_indexes
 from fastapi.openapi.utils import get_openapi
+import os
+
+# Configurar directorio de plantillas
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,13 +40,17 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Montar directorio estático (opcional por ahora, pero útil)
+# app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
 # Include routers
+app.include_router(frontend.router)
 app.include_router(orders.router)
 app.include_router(restaurants.router)
 app.include_router(menu_items.router)
 app.include_router(reviews.router)
 
-# Root endpoint
-@app.get("/")
-def read_root():
-    return {"message": "Bienvenido a la API de Pedidos y Reseñas"} 
+# Root endpoint ya no es necesario, frontend.router lo maneja
+# @app.get("/")
+# def read_root():
+#     return {"message": "Bienvenido a la API. Frontend disponible en /web"} 

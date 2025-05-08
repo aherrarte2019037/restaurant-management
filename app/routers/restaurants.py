@@ -75,4 +75,16 @@ async def get_nearby_restaurants(lat: float, lng: float, max_distance: int = 500
         }
     )
     restaurants_list = await restaurants_cursor.to_list(100)
-    return restaurants_list 
+    return restaurants_list
+
+@router.delete("/{restaurant_id}", status_code=204)
+async def delete_restaurant(restaurant_id: str):
+    """Elimina un restaurante por ID."""
+    try:
+        object_id = ObjectId(restaurant_id)
+        res = await db.restaurants.delete_one({"_id": object_id})
+        if res.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+        return None
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="ID de restaurante inválido") 

@@ -44,6 +44,11 @@ class Review(BaseModel):
         if isinstance(data, dict):
             if '_id' in data and isinstance(data['_id'], ObjectId):
                 data['_id'] = str(data['_id'])
+            if 'restaurant_id' in data and isinstance(data['restaurant_id'], ObjectId):
+                data['restaurant_id'] = str(data['restaurant_id'])
+            if 'order_id' in data and isinstance(data['order_id'], ObjectId):
+                # order_id puede ser None, así que solo convertimos si no es None
+                data['order_id'] = str(data['order_id'])
         return data
     
     model_config = ConfigDict(

@@ -27,7 +27,7 @@ async def list_menu_items(restaurant_id: Optional[str] = None, category: Optiona
     if category:
         query["category"] = category
     
-    menu_items_list = await db.menu_items.find(query).to_list(100)
+    menu_items_list = await db.menu_items.find(query, {"nutritional_info": 0}).to_list(100) # Excluir nutritional_info (proyección)
     return menu_items_list
 
 @router.post("/", response_model=MenuItem)

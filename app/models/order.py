@@ -84,4 +84,8 @@ class Order(BaseModel):
             "status": "pendiente",
             "payment_status": "pendiente"
         }}
-    ) 
+    )
+
+class PaginatedOrders(BaseModel):
+    total: int
+    orders: List[Order] 

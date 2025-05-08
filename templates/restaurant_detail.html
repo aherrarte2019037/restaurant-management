@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<!-- El título se podría pasar desde el backend -->
+		<title>Detalle Restaurante: {{ restaurant.name }}</title>
+		<style>
+			body {
+				font-family: sans-serif;
+				line-height: 1.6;
+				padding: 20px;
+				max-width: 1100px;
+				margin: auto;
+			}
+			h1,
+			h2,
+			h3 {
+				border-bottom: 1px solid #ccc;
+				padding-bottom: 5px;
+				margin-top: 30px;
+			}
+			ul {
+				list-style: none;
+				padding: 0;
+			}
+			li {
+				border: 1px solid #eee;
+				margin-bottom: 8px;
+				padding: 10px;
+			}
+			.detail-section {
+				margin-bottom: 30px;
+			}
+			.item-list li {
+				background-color: #f9f9f9;
+			}
+			.error {
+				color: red;
+				font-weight: bold;
+			}
+			dt {
+				font-weight: bold;
+				margin-top: 10px;
+			}
+			dd {
+				margin-left: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<a href="/">&laquo; Volver a la lista</a>
+
+		<!-- Mostrar detalles básicos del restaurante pasados desde el backend -->
+		<h1>{{ restaurant.name }}</h1>
+		<p>{{ restaurant.address }}</p>
+		<p>
+			Contacto: {{ restaurant.contact.phone }} | {{ restaurant.contact.email }}
+		</p>
+		<p>
+			Cocina: {{ restaurant.cuisine_type | join(', ') }} | Rating: {{
+			restaurant.rating }}
+		</p>
+		<!-- Aquí podrías añadir más detalles si los pasas desde el backend -->
+
+		<div id="message" class="message-area"></div>
+
+		<div class="detail-section">
+			<a
+				href="/restaurants/{{ restaurant.id or restaurant._id }}/orders"
+				style="font-size: 1.1em; font-weight: normal"
+				>Gestionar Pedidos</a
+			>
+		</div>
+
+		<div class="detail-section">
+			<h2>Menú</h2>
+
+			<!-- Botón para mostrar/ocultar formulario -->
+			<button id="btn-toggle-add-menu" style="margin-bottom: 15px">
+				Añadir Plato al Menú
+			</button>
+
+			<!-- Formulario para añadir ítem (inicialmente oculto) -->
+			<form
+				id="add-menu-item-form"
+				style="
+					display: none;
+					border-top: 1px solid #ccc;
+					padding-top: 15px;
+					margin-top: 15px;
+				"
+			>
+				<h3>Nuevo Plato</h3>
+				<input
+					type="hidden"
+					id="restaurant_id_hidden"
+					name="restaurant_id"
+					value="{{ restaurant.id or restaurant._id }}"
+				/>
+				<div class="form-group">
+					<label for="item-name">Nombre:</label>
+					<input type="text" id="item-name" name="name" required />
+				</div>
+				<div class="form-group">
+					<label for="item-description">Descripción:</label>
+					<input
+						type="text"
+						id="item-description"
+						name="description"
+						required
+					/>
+				</div>
+				<div class="form-group">
+					<label for="item-price">Precio:</label>
+					<input
+						type="number"
+						id="item-price"
+						name="price"
+						step="0.01"
+						required
+					/>
+				</div>
+				<div class="form-group">
+					<label for="item-category">Categoría:</label>
+					<input type="text" id="item-category" name="category" required />
+				</div>
+				<div class="form-group">
+					<label for="item-tags">Tags (separados por coma):</label>
+					<input type="text" id="item-tags" name="tags" />
+				</div>
+				<div class="form-group">
+					<label for="item-ingredients"
+						>Ingredientes (separados por coma):</label
+					>
+					<input type="text" id="item-ingredients" name="ingredients" />
+				</div>
+				<div class="form-group">
+					<label for="item-image">Imagen (opcional):</label>
+					<input type="file" id="item-image" name="image" accept="image/*" />
+				</div>
+				<button type="submit">Guardar Plato</button>
+				<button type="button" onclick="toggleAddForm()">Cancelar</button>
+			</form>
+
+			<ul id="menu-item-list" class="item-list">
+				<li>Cargando menú...</li>
+			</ul>
+		</div>
+
+		<div class="detail-section">
+			<h2>Reseñas</h2>
+			<ul id="review-list" class="item-list">
+				<li>Cargando reseñas...</li>
+			</ul>
+		</div>
+
+		<script>
+			const restaurantId = "{{ restaurant.id or restaurant._id }}";
+			const messageDiv = document.getElementById("message");
+			const menuItemList = document.getElementById("menu-item-list");
+			const addMenuItemForm = document.getElementById("add-menu-item-form");
+			let menuItemsCache = [];
+			const btnToggleAddMenu = document.getElementById("btn-toggle-add-menu");
+
+			function showMessage(text, type = "error") {
+				messageDiv.textContent = text;
+				messageDiv.className = `message-area ${type}`;
+				setTimeout(() => {
+					messageDiv.textContent = "";
+					messageDiv.className = "message-area";
+				}, 5000);
+			}
+
+			function toggleAddForm() {
+				addMenuItemForm.style.display =
+					addMenuItemForm.style.display === "none" ? "block" : "none";
+			}
+
+			async function fetchMenuItems() {
+				menuItemList.innerHTML = "<li>Cargando menú...</li>";
+				try {
+					const response = await fetch(
+						`/menu-items/?restaurant_id=${restaurantId}`
+					);
+					if (!response.ok)
+						throw new Error(`HTTP error! status: ${response.status}`);
+					menuItemsCache = await response.json();
+					menuItemList.innerHTML = "";
+					if (menuItemsCache.length === 0) {
+						menuItemList.innerHTML = "<li>No hay elementos en el menú.</li>";
+						return;
+					}
+					menuItemsCache.forEach((item) => {
+						const li = document.createElement("li");
+						const itemId = item.id || item._id;
+						li.dataset.itemId = itemId;
+						li.innerHTML = `
+                         <div>
+                             <strong>${item.name}</strong> (${
+							item.category
+						}) - $${item.price.toFixed(2)}
+                             <button onclick="deleteMenuItem('${itemId}')" style="margin-left: 10px;">Eliminar Plato</button><br>
+                             <small>${item.description}</small>
+                             ${
+																item.tags.length > 0
+																	? `<br><small>Tags: ${item.tags.join(
+																			", "
+																	  )}</small>`
+																	: ""
+															}
+                             ${
+																item.ingredients.length > 0
+																	? `<br><small>Ingredientes: ${item.ingredients.join(
+																			", "
+																	  )}</small>`
+																	: ""
+															}
+                         </div>
+                         <div style="text-align: right;">
+                              <img id="img-${itemId}" src="${
+							item.image_id ? "/menu-items/" + itemId + "/image" : ""
+						}" alt="Imagen del plato" style="max-width: 100px; max-height: 100px; display: ${
+							item.image_id ? "block" : "none"
+						}; margin-bottom: 5px;">
+                              <input type="file" id="file-${itemId}" style="display: none;" accept="image/*" onchange="uploadImage('${itemId}', this.files[0])">
+                              <button onclick="document.getElementById('file-${itemId}').click()">${
+							item.image_id ? "Cambiar" : "Subir"
+						} Imagen</button>
+                         </div>
+                     `;
+						menuItemList.appendChild(li);
+					});
+				} catch (error) {
+					console.error("Error fetching menu items:", error);
+					menuItemList.innerHTML = "<li>Error al cargar el menú.</li>";
+					showMessage("Error al cargar el menú.", "error"); // Asegurar que es error
+				}
+			}
+
+			async function uploadImage(itemId, file) {
+				if (!file) return;
+				const formData = new FormData();
+				formData.append("file", file);
+				try {
+					const response = await fetch(`/menu-items/${itemId}/image`, {
+						method: "POST",
+						body: formData,
+					});
+					if (!response.ok) {
+						const errorData = await response.json();
+						throw new Error(
+							`HTTP ${response.status}: ${
+								errorData.detail || "Error al subir imagen"
+							}`
+						);
+					}
+					const result = await response.json();
+					showMessage(`Imagen ${result.filename} subida con éxito.`, "success"); // Mostrar como éxito
+					const imgElement = document.getElementById(`img-${itemId}`);
+					if (imgElement) {
+						imgElement.src = `/menu-items/${itemId}/image?t=${new Date().getTime()}`;
+						imgElement.style.display = "block";
+						const uploadButton =
+							imgElement.nextElementSibling.nextElementSibling;
+						if (uploadButton) uploadButton.textContent = "Cambiar Imagen";
+					}
+				} catch (error) {
+					console.error("Error uploading image:", error);
+					showMessage(`Error al subir imagen: ${error.message}`, "error");
+				}
+			}
+
+			addMenuItemForm.addEventListener("submit", async (event) => {
+				event.preventDefault();
+				const formData = new FormData(addMenuItemForm);
+				const imageFile = formData.get("image");
+				const itemData = {
+					restaurant_id: formData.get("restaurant_id_hidden"),
+					name: formData.get("name"),
+					description: formData.get("description"),
+					price: parseFloat(formData.get("price")),
+					category: formData.get("category"),
+					tags: formData
+						.get("tags")
+						.split(",")
+						.map((s) => s.trim())
+						.filter((s) => s),
+					ingredients: formData
+						.get("ingredients")
+						.split(",")
+						.map((s) => s.trim())
+						.filter((s) => s),
+					available: true,
+				};
+				try {
+					const response = await fetch("/menu-items/", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(itemData),
+					});
+					if (!response.ok) {
+						const errorData = await response.json();
+						throw new Error(
+							`HTTP ${response.status}: ${
+								errorData.detail || "Error al crear ítem"
+							}`
+						);
+					}
+					const newItem = await response.json();
+					const newItemId = newItem.id || newItem._id;
+					showMessage(`Plato "${newItem.name}" añadido.`, "success");
+					if (imageFile && imageFile.size > 0) {
+						await uploadImage(newItemId, imageFile);
+					}
+					addMenuItemForm.reset();
+					toggleAddForm();
+					fetchMenuItems();
+				} catch (error) {
+					console.error("Error adding menu item:", error);
+					showMessage(`Error al añadir plato: ${error.message}`, "error");
+				}
+			});
+
+			async function deleteMenuItem(itemId) {
+				if (
+					!confirm("¿Estás seguro de que quieres eliminar este plato del menú?")
+				)
+					return;
+				try {
+					const response = await fetch(`/menu-items/${itemId}`, {
+						method: "DELETE",
+					});
+					if (!response.ok) {
+						const errorData = await response.json();
+						throw new Error(
+							`HTTP ${response.status}: ${
+								errorData.detail || "Error al eliminar"
+							}`
+						);
+					}
+					showMessage("Plato eliminado con éxito.", "success");
+					fetchMenuItems();
+				} catch (error) {
+					console.error("Error deleting menu item:", error);
+					showMessage(`Error al eliminar plato: ${error.message}`, "error");
+				}
+			}
+
+			async function fetchReviews() {
+				const listElement = document.getElementById("review-list");
+				listElement.innerHTML = "<li>Cargando reseñas...</li>";
+				try {
+					const response = await fetch(
+						`/reviews/?restaurant_id=${restaurantId}`
+					);
+					if (!response.ok)
+						throw new Error(`HTTP error! status: ${response.status}`);
+					const reviews = await response.json();
+					listElement.innerHTML = "";
+					if (reviews.length === 0) {
+						listElement.innerHTML =
+							"<li>No hay reseñas para este restaurante.</li>";
+						return;
+					}
+					reviews.forEach((review) => {
+						const li = document.createElement("li");
+						li.innerHTML = `
+                          <strong>Rating: ${review.rating}/5</strong> por ${
+							review.customer.name
+						}<br>
+                          <small>Fecha: ${new Date(
+														review.date
+													).toLocaleString()}</small><br>
+                          <em>${review.comment}</em>
+                          ${
+														review.response
+															? `<br><br><strong>Respuesta:</strong> ${
+																	review.response.text
+															  } <small>(${new Date(
+																	review.response.date
+															  ).toLocaleString()})</small>`
+															: ""
+													}
+                      `;
+						listElement.appendChild(li);
+					});
+				} catch (error) {
+					console.error("Error fetching reviews:", error);
+					listElement.innerHTML = "<li>Error al cargar las reseñas.</li>";
+					showMessage("Error al cargar las reseñas.", "error");
+				}
+			}
+
+			fetchMenuItems();
+			fetchReviews();
+
+			if (btnToggleAddMenu) {
+				btnToggleAddMenu.addEventListener("click", toggleAddForm);
+			}
+
+			window.deleteMenuItem = deleteMenuItem;
+			window.uploadImage = uploadImage;
+			window.toggleAddForm = toggleAddForm;
+		</script>
+	</body>
+</html>

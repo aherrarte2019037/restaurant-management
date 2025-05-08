@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurantes</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 700px; margin: auto; }
+        h1 { border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        ul { list-style: none; padding: 0; }
+        li { border: 1px solid #eee; margin-bottom: 10px; padding: 15px; }
+        a { text-decoration: none; color: #007bff; font-weight: bold; }
+        a:hover { text-decoration: underline; }
+        .loading { font-style: italic; color: #888; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Restaurantes Disponibles</h1>
+
+    <div id="message" class="message-area error"></div>
+
+    <ul id="restaurant-list">
+        <li class="loading">Cargando restaurantes...</li>
+    </ul>
+
+    <script>
+        const restaurantList = document.getElementById('restaurant-list');
+        const messageDiv = document.getElementById('message');
+
+        // Función para mostrar errores
+        function showMessage(text) {
+            messageDiv.textContent = text;
+        }
+
+        // Función para obtener y mostrar la lista de restaurantes
+        async function fetchRestaurantList() {
+            try {
+                const response = await fetch('/restaurants/'); // Llama a tu API existente
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const restaurants = await response.json();
+                restaurantList.innerHTML = ''; // Limpiar lista
+                if (restaurants.length === 0) {
+                    restaurantList.innerHTML = '<li>No hay restaurantes para mostrar.</li>';
+                    return;
+                }
+                restaurants.forEach(r => {
+                    const li = document.createElement('li');
+                    const restaurantId = r.id || r._id;
+                    // Enlace a la página de detalles del restaurante
+                    li.innerHTML = `<a href="/restaurants/${restaurantId}/dashboard">${r.name}</a><br><small>${r.address}</small>`; 
+                    restaurantList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error fetching restaurant list:', error);
+                showMessage('Error al cargar la lista de restaurantes.');
+                restaurantList.innerHTML = '<li>Error al cargar restaurantes.</li>';
+            }
+        }
+
+        // Cargar lista al iniciar
+        fetchRestaurantList();
+
+    </script>
+
+</body>
+</html> 
