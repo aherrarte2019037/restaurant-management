@@ -15,6 +15,13 @@ async def list_orders():
 @router.post("/", response_model=Order)
 async def create_order(order: Order):
     data = order.model_dump(by_alias=True, exclude={"id"})
+    if 'items' in data:
+        for item in data['items']:
+            if 'item_id' in item and isinstance(item['item_id'], str):
+                try:
+                    item['item_id'] = ObjectId(item['item_id'])
+                except InvalidId:
+                    pass
     res = await db['orders'].insert_one(data)
     new_doc = await db['orders'].find_one({"_id": res.inserted_id})
     return new_doc
@@ -35,10 +42,23 @@ async def update_order(oid: str, order: Order):
     try:
         object_id = ObjectId(oid)
         data = order.model_dump(by_alias=True, exclude={"id"})
+        if 'items' in data:
+            for item in data['items']:
+                if 'item_id' in item and isinstance(item['item_id'], str):
+                    try:
+                        item['item_id'] = ObjectId(item['item_id'])
+                    except InvalidId:
+                        pass
         res = await db['orders'].update_one({"_id": object_id}, {"$set": data})
         if res.modified_count == 0:
-            raise HTTPException(404, "Pedido no actualizado")
-        return await db['orders'].find_one({"_id": object_id})
+            existing_doc = await db['orders'].find_one({"_id": object_id})
+            if existing_doc:
+                return existing_doc
+            else:
+                raise HTTPException(404, "Pedido no actualizado o no encontrado")
+        
+        updated_doc = await db['orders'].find_one({"_id": object_id})
+        return updated_doc
     except InvalidId:
         raise HTTPException(404, "ID de pedido inválido")
 

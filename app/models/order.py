@@ -1,15 +1,27 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer, model_validator
 from typing import Optional, List, Any
 from bson import ObjectId
 from datetime import datetime
 
 class OrderItem(BaseModel):
-    item_id: str = Field(default=None)
+    item_id: Optional[str] = Field(default=None)
     name: str
     price: float
     quantity: int
     special_instructions: Optional[str] = None
     
+    @field_serializer('item_id')
+    def serialize_objectid(self, obj: Any) -> Optional[str]:
+        return str(obj) if obj else None
+    
+    @model_validator(mode='before')
+    @classmethod
+    def convert_item_id(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if 'item_id' in data and isinstance(data['item_id'], ObjectId):
+                data['item_id'] = str(data['item_id'])
+        return data
+        
     model_config = ConfigDict(
         json_schema_extra={"example": {
             "item_id": "5f8d0f3e9c9d1c2a3b4c5d6e",
@@ -17,7 +29,8 @@ class OrderItem(BaseModel):
             "price": 10.99,
             "quantity": 2,
             "special_instructions": "Sin cebolla"
-        }}
+        }},
+        arbitrary_types_allowed=True, 
     )
 
 class CustomerInfo(BaseModel):
@@ -52,6 +65,14 @@ class Order(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
+    @model_validator(mode='before')
+    @classmethod
+    def convert_objectid_to_str(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if '_id' in data and isinstance(data['_id'], ObjectId):
+                data['_id'] = str(data['_id'])
+        return data
+
     model_config = ConfigDict(
         populate_by_name=True,
         json_encoders={ObjectId: str},

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Optional, List, Dict, Any
 from bson import ObjectId
 from datetime import datetime
 
@@ -32,6 +32,14 @@ class MenuItem(BaseModel):
     ingredients: List[str] = []
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+    
+    @model_validator(mode='before')
+    @classmethod
+    def convert_objectid_to_str(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if '_id' in data and isinstance(data['_id'], ObjectId):
+                data['_id'] = str(data['_id'])
+        return data
     
     model_config = ConfigDict(
         populate_by_name=True,
