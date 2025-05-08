@@ -5,6 +5,23 @@ import os
 from bson import ObjectId
 from bson.errors import InvalidId
 from app.database import db # Importar db
+from datetime import datetime # Importar datetime
+from typing import Any, Dict, List
+
+# --- Función Auxiliar para Serialización --- 
+def make_json_serializable(data: Any) -> Any:
+    """Convierte recursivamente ObjectId y datetime a string."""
+    if isinstance(data, list):
+        return [make_json_serializable(item) for item in data]
+    if isinstance(data, dict):
+        return {key: make_json_serializable(value) for key, value in data.items()}
+    if isinstance(data, ObjectId):
+        return str(data)
+    if isinstance(data, datetime):
+        return data.isoformat()
+    # Añadir más conversiones si es necesario (ej. Decimal)
+    return data
+# -------------------------------------------
 
 # Configurar directorio de plantillas relativo a este archivo o al main?
 # Asumiendo que main.py ya configuró templates correctamente
@@ -30,21 +47,21 @@ async def restaurant_dashboard(request: Request, restaurant_id: str):
     """Sirve la página de detalles (Menú/Reseñas) para un restaurante específico."""
     try:
         object_id = ObjectId(restaurant_id)
-        # Obtener datos básicos del restaurante para mostrar en la página
-        restaurant_data = await db.restaurants.find_one({"_id": object_id})
+        restaurant_doc = await db.restaurants.find_one({"_id": object_id})
         
-        if not restaurant_data:
+        if not restaurant_doc:
             raise HTTPException(status_code=404, detail="Restaurante no encontrado")
             
-        # Convertir ObjectId a str para la plantilla (aunque el modelo ya debería hacerlo)
-        if '_id' in restaurant_data:
-             restaurant_data['id'] = str(restaurant_data['_id'])
-             del restaurant_data['_id'] # Usar solo 'id' en la plantilla
+        # Usar la función auxiliar para asegurar que todo sea serializable
+        serializable_data = make_json_serializable(restaurant_doc)
+        
+        # Renombrar _id a id para la plantilla
+        if '_id' in serializable_data:
+            serializable_data['id'] = serializable_data.pop('_id')
 
-        # Pasar los datos básicos del restaurante a la plantilla
         return templates.TemplateResponse(
             "restaurant_detail.html", 
-            {"request": request, "restaurant": restaurant_data}
+            {"request": request, "restaurant": serializable_data} 
         )
     except InvalidId:
         # Podríamos mostrar una página de error bonita aquí también
@@ -60,20 +77,22 @@ async def restaurant_orders_page(request: Request, restaurant_id: str):
     """Sirve la página dedicada a los pedidos de un restaurante."""
     try:
         object_id = ObjectId(restaurant_id)
-        restaurant_data = await db.restaurants.find_one(
+        restaurant_doc = await db.restaurants.find_one(
             {"_id": object_id},
-            {"_id": 1, "name": 1, "address": 1, "location": 1} # (proyección)
+            {"_id": 1, "name": 1} # (proyección)
         )
         
-        if not restaurant_data:
+        if not restaurant_doc:
             raise HTTPException(status_code=404, detail="Restaurante no encontrado")
             
-        restaurant_data['id'] = str(restaurant_data['_id'])
-        del restaurant_data['_id']
+        # Usar la función auxiliar aquí también (aunque solo trae _id y name)
+        serializable_data = make_json_serializable(restaurant_doc)
+        if '_id' in serializable_data:
+            serializable_data['id'] = serializable_data.pop('_id')
 
         return templates.TemplateResponse(
             "restaurant_orders.html", 
-            {"request": request, "restaurant": restaurant_data} # Pasar datos a la plantilla
+            {"request": request, "restaurant": serializable_data} # Pasar datos a la plantilla
         )
     except InvalidId:
         raise HTTPException(status_code=404, detail="ID de restaurante inválido")

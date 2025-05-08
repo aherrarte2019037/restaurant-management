@@ -40,17 +40,10 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-# Montar directorio estático (opcional por ahora, pero útil)
-# app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-
 # Include routers
 app.include_router(frontend.router)
 app.include_router(orders.router)
 app.include_router(restaurants.router)
 app.include_router(menu_items.router)
 app.include_router(reviews.router)
-
-# Root endpoint ya no es necesario, frontend.router lo maneja
-# @app.get("/")
-# def read_root():
-#     return {"message": "Bienvenido a la API. Frontend disponible en /web"} 
+ 

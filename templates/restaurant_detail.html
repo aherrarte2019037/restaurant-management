@@ -48,21 +48,46 @@
 			}
 		</style>
 	</head>
-	<body>
+	<body data-restaurant='{{ restaurant | tojson | safe }}'>
 		<a href="/">&laquo; Volver a la lista</a>
 
-		<!-- Mostrar detalles básicos del restaurante pasados desde el backend -->
-		<h1>{{ restaurant.name }}</h1>
-		<p>{{ restaurant.address }}</p>
-		<p>
-			Contacto: {{ restaurant.contact.phone }} | {{ restaurant.contact.email }}
-		</p>
-		<p>
-			Cocina: {{ restaurant.cuisine_type | join(', ') }} | Rating: {{
-			restaurant.rating }}
-		</p>
-		<!-- Aquí podrías añadir más detalles si los pasas desde el backend -->
-
+		<!-- Mostrar detalles básicos usando JS para asegurar consistencia -->
+		<h1><span id="display-h1-name"></span> <button id="btn-toggle-edit-restaurant" style="font-size: 0.6em; vertical-align: middle;">Editar Info</button></h1>
+		
+		<!-- Formulario de Edición (Oculto inicialmente) -->
+		<form id="edit-restaurant-form" style="display: none; border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; background-color: #f0f0f0;">
+			<h3>Editar Información del Restaurante</h3>
+			<input type="hidden" id="edit-restaurant-id" > <!-- El ID se tomará de restaurantData -->
+			<div class="form-group">
+				<label for="edit-name">Nombre:</label>
+				<input type="text" id="edit-name" name="name" required>
+			</div>
+			<div class="form-group">
+				<label for="edit-address">Dirección:</label>
+				<input type="text" id="edit-address" name="address" required>
+			</div>
+			<div class="form-group">
+				<label for="edit-phone">Teléfono Contacto:</label>
+				<input type="tel" id="edit-phone" name="phone" required>
+			</div>
+			<div class="form-group">
+				<label for="edit-email">Email Contacto:</label>
+				<input type="email" id="edit-email" name="email" required>
+			</div>
+			<div class="form-group">
+				<label for="edit-cuisine_type">Tipos de Cocina (separados por coma):</label>
+				<input type="text" id="edit-cuisine_type" name="cuisine_type" value="{{ restaurant.cuisine_type | join(', ') | safe }}" required>
+			</div>
+			 <!-- Ya no se necesitan campos ocultos -->
+			
+			<button type="submit">Guardar Cambios</button>
+			<button type="button" id="btn-cancel-edit-restaurant">Cancelar</button>
+		</form>
+		
+		<p id="display-address"></p>
+		<p id="display-contact"></p>
+		<p id="display-cuisine"></p>
+		
 		<div id="message" class="message-area"></div>
 
 		<div class="detail-section">
@@ -156,12 +181,23 @@
 		</div>
 
 		<script>
-			const restaurantId = "{{ restaurant.id or restaurant._id }}";
-			const messageDiv = document.getElementById("message");
+			// Leer datos del atributo data-restaurant del body
+			let restaurantData = JSON.parse(document.body.dataset.restaurant || '{}');
+
+			const messageDiv = document.getElementById('message');
 			const menuItemList = document.getElementById("menu-item-list");
 			const addMenuItemForm = document.getElementById("add-menu-item-form");
 			let menuItemsCache = [];
 			const btnToggleAddMenu = document.getElementById("btn-toggle-add-menu");
+			const btnToggleEditRestaurant = document.getElementById('btn-toggle-edit-restaurant');
+			const btnCancelEditRestaurant = document.getElementById('btn-cancel-edit-restaurant');
+			const editRestaurantForm = document.getElementById('edit-restaurant-form');
+			// Elementos para actualizar dinámicamente
+			const displayAddress = document.getElementById('display-address');
+			const displayContact = document.getElementById('display-contact');
+			const displayCuisine = document.getElementById('display-cuisine');
+			const displayH1Name = document.getElementById('display-h1-name');
+			const pageTitle = document.querySelector('title'); // Para actualizar título si cambia nombre
 
 			function showMessage(text, type = "error") {
 				messageDiv.textContent = text;
@@ -177,64 +213,46 @@
 					addMenuItemForm.style.display === "none" ? "block" : "none";
 			}
 
-			async function fetchMenuItems() {
-				menuItemList.innerHTML = "<li>Cargando menú...</li>";
+			async function fetchMenuItems(currentRestaurantId) {
+				console.log('Intentando cargar menú para:', currentRestaurantId);
+				const listElement = document.getElementById('menu-item-list');
+				listElement.innerHTML = '<li>Cargando menú...</li>'; 
 				try {
-					const response = await fetch(
-						`/menu-items/?restaurant_id=${restaurantId}`
-					);
-					if (!response.ok)
-						throw new Error(`HTTP error! status: ${response.status}`);
-					menuItemsCache = await response.json();
-					menuItemList.innerHTML = "";
+					const response = await fetch(`/menu-items/?restaurant_id=${currentRestaurantId}`);
+					console.log('Respuesta fetch menú:', response.status, response.ok);
+					if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+					menuItemsCache = await response.json(); 
+					console.log('Datos del menú recibidos:', menuItemsCache);
+					listElement.innerHTML = ''; 
 					if (menuItemsCache.length === 0) {
-						menuItemList.innerHTML = "<li>No hay elementos en el menú.</li>";
+						listElement.innerHTML = '<li>No hay elementos en el menú.</li>';
 						return;
 					}
-					menuItemsCache.forEach((item) => {
-						const li = document.createElement("li");
+					menuItemsCache.forEach(item => {
+						console.log('Renderizando item:', item.name);
+						const li = document.createElement('li');
 						const itemId = item.id || item._id;
 						li.dataset.itemId = itemId;
 						li.innerHTML = `
-                         <div>
-                             <strong>${item.name}</strong> (${
-							item.category
-						}) - $${item.price.toFixed(2)}
-                             <button onclick="deleteMenuItem('${itemId}')" style="margin-left: 10px;">Eliminar Plato</button><br>
-                             <small>${item.description}</small>
-                             ${
-																item.tags.length > 0
-																	? `<br><small>Tags: ${item.tags.join(
-																			", "
-																	  )}</small>`
-																	: ""
-															}
-                             ${
-																item.ingredients.length > 0
-																	? `<br><small>Ingredientes: ${item.ingredients.join(
-																			", "
-																	  )}</small>`
-																	: ""
-															}
-                         </div>
-                         <div style="text-align: right;">
-                              <img id="img-${itemId}" src="${
-							item.image_id ? "/menu-items/" + itemId + "/image" : ""
-						}" alt="Imagen del plato" style="max-width: 100px; max-height: 100px; display: ${
-							item.image_id ? "block" : "none"
-						}; margin-bottom: 5px;">
-                              <input type="file" id="file-${itemId}" style="display: none;" accept="image/*" onchange="uploadImage('${itemId}', this.files[0])">
-                              <button onclick="document.getElementById('file-${itemId}').click()">${
-							item.image_id ? "Cambiar" : "Subir"
-						} Imagen</button>
-                         </div>
-                     `;
-						menuItemList.appendChild(li);
+							<div>
+								<strong>${item.name}</strong> (${item.category}) - $${item.price.toFixed(2)}
+								<button onclick="deleteMenuItem('${itemId}')" style="margin-left: 10px;">Eliminar Plato</button><br>
+								<small>${item.description}</small>
+								${item.tags.length > 0 ? `<br><small>Tags: ${item.tags.join(', ')}</small>` : ''}
+								${item.ingredients.length > 0 ? `<br><small>Ingredientes: ${item.ingredients.join(', ')}</small>` : ''}
+							</div>
+							<div style="text-align: right;">
+								 <img id="img-${itemId}" src="${item.image_id ? '/menu-items/' + itemId + '/image' : ''}" alt="Imagen del plato" style="max-width: 100px; max-height: 100px; display: ${item.image_id ? 'block' : 'none'}; margin-bottom: 5px;">
+								 <input type="file" id="file-${itemId}" style="display: none;" accept="image/*" onchange="uploadImage('${itemId}', this.files[0])">
+								 <button onclick="document.getElementById('file-${itemId}').click()">${item.image_id ? 'Cambiar' : 'Subir'} Imagen</button>
+							</div>
+						`;
+						 menuItemList.appendChild(li);
 					});
 				} catch (error) {
-					console.error("Error fetching menu items:", error);
-					menuItemList.innerHTML = "<li>Error al cargar el menú.</li>";
-					showMessage("Error al cargar el menú.", "error"); // Asegurar que es error
+					console.error('Error fetching menu items:', error);
+					listElement.innerHTML = '<li>Error al cargar el menú.</li>';
+					showMessage('Error al cargar el menú.','error');
 				}
 			}
 
@@ -315,7 +333,7 @@
 					}
 					addMenuItemForm.reset();
 					toggleAddForm();
-					fetchMenuItems();
+					fetchMenuItems(currentRestaurantId);
 				} catch (error) {
 					console.error("Error adding menu item:", error);
 					showMessage(`Error al añadir plato: ${error.message}`, "error");
@@ -340,65 +358,136 @@
 						);
 					}
 					showMessage("Plato eliminado con éxito.", "success");
-					fetchMenuItems();
+					fetchMenuItems(currentRestaurantId);
 				} catch (error) {
 					console.error("Error deleting menu item:", error);
 					showMessage(`Error al eliminar plato: ${error.message}`, "error");
 				}
 			}
 
-			async function fetchReviews() {
-				const listElement = document.getElementById("review-list");
-				listElement.innerHTML = "<li>Cargando reseñas...</li>";
-				try {
-					const response = await fetch(
-						`/reviews/?restaurant_id=${restaurantId}`
-					);
-					if (!response.ok)
-						throw new Error(`HTTP error! status: ${response.status}`);
-					const reviews = await response.json();
-					listElement.innerHTML = "";
-					if (reviews.length === 0) {
-						listElement.innerHTML =
-							"<li>No hay reseñas para este restaurante.</li>";
-						return;
-					}
-					reviews.forEach((review) => {
-						const li = document.createElement("li");
+			async function fetchReviews(currentRestaurantId) { 
+				console.log('Intentando cargar reseñas para:', currentRestaurantId);
+				const listElement = document.getElementById('review-list');
+				listElement.innerHTML = '<li>Cargando reseñas...</li>';
+				 try {
+					 const response = await fetch(`/reviews/?restaurant_id=${currentRestaurantId}`);
+					 console.log('Respuesta fetch reseñas:', response.status, response.ok);
+					 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+					 const reviews = await response.json();
+					 console.log('Datos de reseñas recibidos:', reviews);
+					 listElement.innerHTML = '';
+					 if (reviews.length === 0) {
+						 listElement.innerHTML = '<li>No hay reseñas para este restaurante.</li>';
+						 return;
+					 }
+					 reviews.forEach(review => {
+						console.log('Renderizando reseña de:', review.customer.name);
+						const li = document.createElement('li');
 						li.innerHTML = `
-                          <strong>Rating: ${review.rating}/5</strong> por ${
-							review.customer.name
-						}<br>
-                          <small>Fecha: ${new Date(
-														review.date
-													).toLocaleString()}</small><br>
-                          <em>${review.comment}</em>
-                          ${
-														review.response
-															? `<br><br><strong>Respuesta:</strong> ${
-																	review.response.text
-															  } <small>(${new Date(
-																	review.response.date
-															  ).toLocaleString()})</small>`
-															: ""
-													}
-                      `;
+							<strong>Rating: ${review.rating}/5</strong> por ${review.customer.name}<br>
+							<small>Fecha: ${new Date(review.date).toLocaleString()}</small><br>
+							<em>${review.comment}</em>
+							${review.response ? `<br><br><strong>Respuesta:</strong> ${review.response.text} <small>(${new Date(review.response.date).toLocaleString()})</small>` : ''}
+						`;
 						listElement.appendChild(li);
 					});
 				} catch (error) {
-					console.error("Error fetching reviews:", error);
-					listElement.innerHTML = "<li>Error al cargar las reseñas.</li>";
-					showMessage("Error al cargar las reseñas.", "error");
+					console.error('Error fetching reviews:', error);
+					listElement.innerHTML = '<li>Error al cargar las reseñas.</li>';
+					showMessage('Error al cargar las reseñas.','error');
 				}
 			}
 
-			fetchMenuItems();
-			fetchReviews();
-
-			if (btnToggleAddMenu) {
-				btnToggleAddMenu.addEventListener("click", toggleAddForm);
+			// --- Función para poblar/actualizar la UI con datos del restaurante ---
+			function populateRestaurantUI(data) {
+				// Usar data.id (ya que lo creamos en el backend)
+				const currentRestaurantId = data.id;
+				document.getElementById('edit-restaurant-id').value = currentRestaurantId; 
+				
+				pageTitle.textContent = `Detalle Restaurante: ${data.name}`;
+				displayH1Name.textContent = data.name;
+				displayAddress.textContent = data.address;
+				displayContact.textContent = `Contacto: ${data.contact.phone} | ${data.contact.email}`;
+				displayCuisine.textContent = `Cocina: ${data.cuisine_type.join(', ')} | Rating: ${data.rating}`;
+				
+				// Poblar el formulario de edición también (si se abre)
+				document.getElementById('edit-name').value = data.name;
+				document.getElementById('edit-address').value = data.address;
+				document.getElementById('edit-phone').value = data.contact.phone;
+				document.getElementById('edit-email').value = data.contact.email;
+				document.getElementById('edit-cuisine_type').value = data.cuisine_type.join(', ');
+				
+				// Llamar a fetchMenuItems y fetchReviews usando el ID correcto
+				fetchMenuItems(currentRestaurantId);
+				fetchReviews(currentRestaurantId);
 			}
 
+			// --- Funciones para Edición de Restaurante ---
+			function toggleEditRestaurantForm() {
+				const isHidden = editRestaurantForm.style.display === 'none';
+				editRestaurantForm.style.display = isHidden ? 'block' : 'none';
+				if (isHidden) {
+					// Repopular desde el objeto JS por si acaso
+					populateRestaurantUI(restaurantData);
+				}
+			}
+
+			editRestaurantForm.addEventListener('submit', async (event) => {
+				event.preventDefault();
+				const currentRestaurantId = document.getElementById('edit-restaurant-id').value;
+				const name = document.getElementById('edit-name').value;
+				const address = document.getElementById('edit-address').value;
+				const phone = document.getElementById('edit-phone').value;
+				const email = document.getElementById('edit-email').value;
+				const cuisine_type = document.getElementById('edit-cuisine_type').value.split(',').map(s => s.trim()).filter(s => s);
+				
+				// Tomar datos no editables del objeto JS original
+				const updatedData = {
+					name: name,
+					address: address,
+					contact: { phone: phone, email: email },
+					cuisine_type: cuisine_type,
+					hours: restaurantData.hours, // Tomar del objeto original
+					location: restaurantData.location, // Tomar del objeto original
+					rating: restaurantData.rating // Tomar del objeto original
+				};
+
+				try {
+					const response = await fetch(`/restaurants/${currentRestaurantId}`, {
+						method: 'PUT',
+						headers: {'Content-Type': 'application/json'},
+						body: JSON.stringify(updatedData),
+					});
+					if (!response.ok) {
+						const errorData = await response.json();
+						throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Error al actualizar'}`);
+					}
+					const updatedRestaurantFromServer = await response.json();
+					// IMPORTANTE: Actualizar el objeto JS global con los datos del servidor
+					restaurantData = updatedRestaurantFromServer;
+					// Convertir _id a id si es necesario (el validador del modelo debería hacerlo ya)
+					if (restaurantData._id && !restaurantData.id) {
+						restaurantData.id = restaurantData._id;
+					}
+					
+					showMessage('Restaurante actualizado con éxito.', 'success');
+					populateRestaurantUI(restaurantData); // Actualizar toda la UI
+					editRestaurantForm.style.display = 'none'; // Ocultar formulario
+
+				} catch (error) {
+					console.error('Error updating restaurant:', error);
+					 showMessage(`Error al actualizar: ${error.message}`, 'error');
+				}
+			});
+			
+			// Listener para botones de edición
+			btnToggleEditRestaurant.addEventListener('click', toggleEditRestaurantForm);
+			btnCancelEditRestaurant.addEventListener('click', toggleEditRestaurantForm);
+
+			// Carga inicial usando el objeto JS
+			populateRestaurantUI(restaurantData); 
+			
+			// Hacer funciones globales necesarias
 			window.deleteMenuItem = deleteMenuItem;
 			window.uploadImage = uploadImage;
 			window.toggleAddForm = toggleAddForm;
