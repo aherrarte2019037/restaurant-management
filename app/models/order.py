@@ -77,7 +77,6 @@ class Order(BaseModel):
         populate_by_name=True,
         json_encoders={ObjectId: str},
         json_schema_extra={"example": {
-            "_id": "5f8d0f3e9c9d1c2a3b4c5d6e",
             "order_id": 12345,
             "restaurant": "Restaurante ABC",
             "date": "2023-01-01T12:00:00",

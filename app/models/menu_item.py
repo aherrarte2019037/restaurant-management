@@ -45,7 +45,6 @@ class MenuItem(BaseModel):
         populate_by_name=True,
         json_encoders={ObjectId: str},
         json_schema_extra={"example": {
-            "_id": "5f8d0f3e9c9d1c2a3b4c5d6e",
             "restaurant_id": "5f8d0f3e9c9d1c2a3b4c5d6f",
             "name": "Hamburguesa Clásica",
             "description": "Deliciosa hamburguesa de carne con lechuga, tomate y queso",
