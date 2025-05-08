@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import asyncio
@@ -8,6 +6,7 @@ from faker import Faker
 from bson import ObjectId
 from random import choice, randint, uniform, sample
 from datetime import datetime, timedelta
+import uuid
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
@@ -141,7 +140,6 @@ def create_fake_order(restaurant_ids, all_menu_items, num_orders_per_restaurant=
             delivery_time = fake.future_datetime(end_date="+2h") if status == 'entregado' else None
 
             order_data = {
-                "order_id": randint(10000, 99999) + i, 
                 "restaurant": "Restaurante ID:" + str(rest_id), 
                 "date": fake.past_datetime(start_date="-6m"),
                 "customer": create_fake_customer_info().model_dump(),
@@ -240,11 +238,10 @@ async def insert_fake_data(num_restaurants=10, num_items_per_restaurant=15, num_
 
     print("\n✨ Proceso completado.")
 
-
 if __name__ == "__main__":
     asyncio.run(insert_fake_data(
-        num_restaurants=15, 
-        num_items_per_restaurant=20, 
-        num_orders_per_restaurant=50, 
-        num_reviews_per_restaurant=10
+        num_restaurants=250,
+        num_items_per_restaurant=25,
+        num_orders_per_restaurant=200,
+        num_reviews_per_restaurant=20
     )) 

@@ -50,7 +50,6 @@ class CustomerInfo(BaseModel):
 
 class Order(BaseModel):
     id: Optional[str] = Field(alias="_id", default=None)
-    order_id: int
     restaurant: str
     date: datetime = Field(default_factory=datetime.now)
     customer: CustomerInfo
@@ -77,7 +76,6 @@ class Order(BaseModel):
         populate_by_name=True,
         json_encoders={ObjectId: str},
         json_schema_extra={"example": {
-            "order_id": 12345,
             "restaurant": "Restaurante ABC",
             "date": "2023-01-01T12:00:00",
             "customer": {"name": "Juan Pérez", "email": "juan@ejemplo.com"},

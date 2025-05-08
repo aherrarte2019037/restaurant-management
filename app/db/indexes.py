@@ -18,7 +18,6 @@ async def create_indexes():
     await db.menu_items.create_index([("name", "text"), ("description", "text")])
     
     # Índices para orders
-    await db.orders.create_index("order_id", unique=True)
     await db.orders.create_index("restaurant")
     await db.orders.create_index("customer.email")
     await db.orders.create_index([("date", -1)])
