@@ -88,6 +88,19 @@
 		<p id="display-contact"></p>
 		<p id="display-cuisine"></p>
 		
+		<!-- Sección para gestionar Tipos de Cocina -->
+		<div class="detail-section" id="cuisine-section">
+			<h4>Tipos de Cocina Actuales:</h4>
+			<ul id="cuisine-type-list" style="padding-left: 20px; list-style: disc;">
+				<!-- Se rellena con JS -->
+			</ul>
+			<div class="form-group" style="margin-top: 15px;">
+				<label for="add-cuisine-input">Añadir Tipo de Cocina:</label>
+				<input type="text" id="add-cuisine-input" placeholder="Ej: Fusión" style="width: auto;">
+				<button id="add-cuisine-btn">Añadir</button>
+			</div>
+		</div>
+		
 		<div id="message" class="message-area"></div>
 
 		<div class="detail-section">
@@ -198,6 +211,9 @@
 			const displayCuisine = document.getElementById('display-cuisine');
 			const displayH1Name = document.getElementById('display-h1-name');
 			const pageTitle = document.querySelector('title'); // Para actualizar título si cambia nombre
+			const cuisineTypeListUL = document.getElementById('cuisine-type-list');
+			const addCuisineInput = document.getElementById('add-cuisine-input');
+			const addCuisineBtn = document.getElementById('add-cuisine-btn');
 
 			function showMessage(text, type = "error") {
 				messageDiv.textContent = text;
@@ -398,29 +414,121 @@
 				}
 			}
 
-			// --- Función para poblar/actualizar la UI con datos del restaurante ---
+			// --- Función para poblar/actualizar la UI con datos del restaurante (MODIFICADA) ---
 			function populateRestaurantUI(data) {
-				// Usar data.id (ya que lo creamos en el backend)
-				const currentRestaurantId = data.id;
-				document.getElementById('edit-restaurant-id').value = currentRestaurantId; 
-				
+				// ... (actualizar título, nombre, dirección, contacto)
 				pageTitle.textContent = `Detalle Restaurante: ${data.name}`;
 				displayH1Name.textContent = data.name;
 				displayAddress.textContent = data.address;
 				displayContact.textContent = `Contacto: ${data.contact.phone} | ${data.contact.email}`;
-				displayCuisine.textContent = `Cocina: ${data.cuisine_type.join(', ')} | Rating: ${data.rating}`;
 				
-				// Poblar el formulario de edición también (si se abre)
+				// Actualizar la sección de rating (que está en el párrafo display-cuisine)
+				displayCuisine.innerHTML = `Cocina: <span id="cuisine-types-display-inline"></span> | Rating: ${data.rating}`;
+				updateCuisineDisplay(data.cuisine_type); // Llamar a función separada para actualizar la lista
+				
+				// ... (poblar formulario de edición)
 				document.getElementById('edit-name').value = data.name;
 				document.getElementById('edit-address').value = data.address;
 				document.getElementById('edit-phone').value = data.contact.phone;
 				document.getElementById('edit-email').value = data.contact.email;
 				document.getElementById('edit-cuisine_type').value = data.cuisine_type.join(', ');
 				
-				// Llamar a fetchMenuItems y fetchReviews usando el ID correcto
+				const currentRestaurantId = data.id;
+				document.getElementById('edit-restaurant-id').value = currentRestaurantId; 
 				fetchMenuItems(currentRestaurantId);
 				fetchReviews(currentRestaurantId);
 			}
+			
+			// --- Nueva función para renderizar la lista de tipos de cocina ---
+			function updateCuisineDisplay(cuisineTypes) {
+				// Actualizar el span inline en el párrafo principal
+				const inlineDisplay = document.getElementById('cuisine-types-display-inline');
+				if (inlineDisplay) {
+					inlineDisplay.textContent = cuisineTypes.join(', ') || 'Ninguno';
+				}
+				
+				// Actualizar la lista detallada con botones de eliminar
+				cuisineTypeListUL.innerHTML = '';
+				if (!cuisineTypes || cuisineTypes.length === 0) {
+					cuisineTypeListUL.innerHTML = '<li>No hay tipos de cocina definidos.</li>';
+					return;
+				}
+				cuisineTypes.forEach(type => {
+					const li = document.createElement('li');
+					li.style.border = 'none'; // Quitar borde para que parezca lista normal
+					li.style.padding = '2px 0';
+					li.innerHTML = `
+						${type}
+						<button onclick="removeCuisineType('${type}')" 
+								style="font-size: 0.8em; color: red; margin-left: 10px; padding: 1px 4px;">x</button>
+					`;
+					cuisineTypeListUL.appendChild(li);
+				});
+			}
+			
+			// --- Funciones CRUD para Tipos de Cocina ---
+			async function addCuisineType() {
+				const typeToAdd = addCuisineInput.value.trim();
+				if (!typeToAdd) {
+					showMessage('Ingrese un tipo de cocina para añadir.', 'error');
+					return;
+				}
+				const currentRestaurantId = restaurantData.id; // Usar ID del objeto global
+
+				try {
+					const response = await fetch(`/restaurants/${currentRestaurantId}/cuisine-types`, {
+						method: 'POST',
+						headers: {'Content-Type': 'application/json'},
+						body: JSON.stringify({ type: typeToAdd })
+					});
+					if (!response.ok) {
+						 const errorData = await response.json();
+						 throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Error al añadir tipo'}`);
+					}
+					const updatedRestaurant = await response.json();
+					restaurantData = updatedRestaurant; // Actualizar datos globales
+					if (restaurantData._id && !restaurantData.id) restaurantData.id = restaurantData._id;
+					
+					showMessage(`Tipo "${typeToAdd}" añadido con éxito.`, 'success');
+					updateCuisineDisplay(restaurantData.cuisine_type); // Actualizar UI
+					document.getElementById('edit-cuisine_type').value = restaurantData.cuisine_type.join(', '); // Actualizar form oculto
+					addCuisineInput.value = ''; // Limpiar input
+				} catch (error) {
+					console.error('Error adding cuisine type:', error);
+					showMessage(`Error al añadir tipo: ${error.message}`, 'error');
+				}
+			}
+
+			async function removeCuisineType(typeName) {
+				if (!confirm(`¿Seguro que quieres eliminar el tipo de cocina "${typeName}"?`)) return;
+				
+				const currentRestaurantId = restaurantData.id;
+				// Asegurarse de que el typeName esté codificado para la URL
+				const encodedTypeName = encodeURIComponent(typeName);
+
+				try {
+					const response = await fetch(`/restaurants/${currentRestaurantId}/cuisine-types/${encodedTypeName}`, {
+						method: 'DELETE'
+					});
+					 if (!response.ok) {
+						 const errorData = await response.json();
+						 throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Error al eliminar tipo'}`);
+					}
+					 const updatedRestaurant = await response.json();
+					 restaurantData = updatedRestaurant;
+					 if (restaurantData._id && !restaurantData.id) restaurantData.id = restaurantData._id;
+					 
+					 showMessage(`Tipo "${typeName}" eliminado con éxito.`, 'success');
+					 updateCuisineDisplay(restaurantData.cuisine_type);
+					 document.getElementById('edit-cuisine_type').value = restaurantData.cuisine_type.join(', ');
+				} catch (error) {
+					 console.error('Error removing cuisine type:', error);
+					 showMessage(`Error al eliminar tipo: ${error.message}`, 'error');
+				}
+			}
+			
+			// --- Listener para botón Añadir Tipo Cocina ---
+			addCuisineBtn.addEventListener('click', addCuisineType);
 
 			// --- Funciones para Edición de Restaurante ---
 			function toggleEditRestaurantForm() {
@@ -491,6 +599,7 @@
 			window.deleteMenuItem = deleteMenuItem;
 			window.uploadImage = uploadImage;
 			window.toggleAddForm = toggleAddForm;
+			window.removeCuisineType = removeCuisineType; // Hacer global para onclick
 		</script>
 	</body>
 </html>
